@@ -1,5 +1,7 @@
 # Laravel React Single Product Ecommerce Project
 
+## Note: Write a clean and Professional code. Because I am a senior software engineer
+
 Hello,
 I want to build a single-product eCommerce web application with a complete set of modern eCommerce features.
 
