@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\OtpController;
@@ -49,9 +50,8 @@ Route::middleware('auth')->group(function () {
 
     // Customer Routes
     Route::middleware('can:isCustomer,App\Models\User')->group(function () {
-        Route::get('/profile', function () {
-            return inertia('Customer/Profile');
-        })->name('customer.profile');
+        Route::get('/profile', [ProfileController::class, 'show'])->name('customer.profile');
+        Route::put('/profile', [ProfileController::class, 'update'])->name('customer.profile.update');
 
         Route::get('/orders', function () {
             return inertia('Customer/Orders');
