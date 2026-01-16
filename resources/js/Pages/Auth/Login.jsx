@@ -1,5 +1,5 @@
 import { Link, router, usePage } from "@inertiajs/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Formik, Form } from "formik";
 import * as Yup from "yup";
 import toast from "react-hot-toast";
@@ -18,6 +18,7 @@ const LoginSchema = Yup.object().shape({
 
 export default function Login() {
     const { errors: serverErrors, flash } = usePage().props;
+    const [unverifiedEmail, setUnverifiedEmail] = useState(null);
 
     useEffect(() => {
         if (flash?.success) {
@@ -25,6 +26,19 @@ export default function Login() {
         }
         if (flash?.error) {
             toast.error(flash.error);
+            // Check if it's an unverified account error
+            if (
+                flash.error.includes("not verified") ||
+                flash.error.includes("verification")
+            ) {
+                // Extract email from the last login attempt if available
+                const emailInput = document.querySelector(
+                    'input[name="email"]'
+                );
+                if (emailInput?.value) {
+                    setUnverifiedEmail(emailInput.value);
+                }
+            }
         }
     }, [flash]);
 
@@ -32,17 +46,33 @@ export default function Login() {
         router.post("/login", values, {
             onSuccess: () => {
                 toast.success("Login successful! Welcome back.");
+                setUnverifiedEmail(null);
             },
             onError: (errors) => {
                 setErrors(errors);
                 if (errors.email) {
                     toast.error(errors.email);
+                    // Check if it's an unverified account error
+                    if (
+                        errors.email.includes("not verified") ||
+                        errors.email.includes("verification")
+                    ) {
+                        setUnverifiedEmail(values.email);
+                    }
                 } else {
                     toast.error("Login failed. Please check your credentials.");
                 }
             },
             onFinish: () => setSubmitting(false),
         });
+    };
+
+    const handleVerifyOtp = () => {
+        if (unverifiedEmail) {
+            router.visit(
+                `/verify-otp?email=${encodeURIComponent(unverifiedEmail)}`
+            );
+        }
     };
 
     return (
@@ -79,69 +109,107 @@ export default function Login() {
                         handleChange,
                         handleBlur,
                         isSubmitting,
-                    }) => (
-                        <Form className="mt-8 space-y-6">
-                            <div className="space-y-4">
-                                <FormInput
-                                    label="Email Address"
-                                    name="email"
-                                    type="email"
-                                    placeholder="you@example.com"
-                                    value={values.email}
-                                    onChange={handleChange}
-                                    onBlur={handleBlur}
-                                    error={errors.email || serverErrors?.email}
-                                    touched={touched.email}
-                                    autoComplete="email"
-                                    required
-                                />
+                        setFieldError,
+                        setFieldTouched,
+                    }) => {
+                        const handleInputChange = (e) => {
+                            const fieldName = e.target.name;
+                            // Clear error for this field when user starts typing
+                            if (errors[fieldName]) {
+                                setFieldError(fieldName, undefined);
+                            }
+                            // Clear touched state to prevent validation error from showing immediately
+                            setFieldTouched(fieldName, false, false);
+                            // Hide verification message when user changes input
+                            if (unverifiedEmail) {
+                                setUnverifiedEmail(null);
+                            }
+                            handleChange(e);
+                        };
 
-                                <FormInput
-                                    label="Password"
-                                    name="password"
-                                    type="password"
-                                    placeholder="••••••••"
-                                    value={values.password}
-                                    onChange={handleChange}
-                                    onBlur={handleBlur}
-                                    error={
-                                        errors.password ||
-                                        serverErrors?.password
-                                    }
-                                    touched={touched.password}
-                                    autoComplete="current-password"
-                                    required
-                                />
-                            </div>
+                        return (
+                            <Form className="mt-8 space-y-6">
+                                <div className="space-y-4">
+                                    <FormInput
+                                        label="Email Address"
+                                        name="email"
+                                        type="email"
+                                        placeholder="you@example.com"
+                                        value={values.email}
+                                        onChange={handleInputChange}
+                                        onBlur={handleBlur}
+                                        error={
+                                            errors.email || serverErrors?.email
+                                        }
+                                        touched={touched.email}
+                                        autoComplete="email"
+                                        required
+                                    />
 
-                            <div className="flex items-center justify-between">
-                                <FormCheckbox
-                                    label="Remember me"
-                                    name="remember"
-                                    checked={values.remember}
-                                    onChange={handleChange}
-                                    onBlur={handleBlur}
-                                />
-
-                                <div className="text-sm">
-                                    <Link
-                                        href="/forgot-password"
-                                        className="font-medium text-indigo-600 hover:text-indigo-500"
-                                    >
-                                        Forgot password?
-                                    </Link>
+                                    <FormInput
+                                        label="Password"
+                                        name="password"
+                                        type="password"
+                                        placeholder="••••••••"
+                                        value={values.password}
+                                        onChange={handleInputChange}
+                                        onBlur={handleBlur}
+                                        error={
+                                            errors.password ||
+                                            serverErrors?.password
+                                        }
+                                        touched={touched.password}
+                                        autoComplete="current-password"
+                                        required
+                                    />
                                 </div>
-                            </div>
 
-                            <FormButton
-                                type="submit"
-                                loading={isSubmitting}
-                                fullWidth
-                            >
-                                {isSubmitting ? "Signing in..." : "Sign in"}
-                            </FormButton>
-                        </Form>
-                    )}
+                                <div className="flex items-center justify-between">
+                                    <FormCheckbox
+                                        label="Remember me"
+                                        name="remember"
+                                        checked={values.remember}
+                                        onChange={handleChange}
+                                        onBlur={handleBlur}
+                                    />
+
+                                    <div className="text-sm">
+                                        <Link
+                                            href="/forgot-password"
+                                            className="font-medium text-indigo-600 hover:text-indigo-500"
+                                        >
+                                            Forgot password?
+                                        </Link>
+                                    </div>
+                                </div>
+
+                                <FormButton
+                                    type="submit"
+                                    loading={isSubmitting}
+                                    fullWidth
+                                >
+                                    {isSubmitting ? "Signing in..." : "Sign in"}
+                                </FormButton>
+
+                                {unverifiedEmail && (
+                                    <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                                        <p className="text-sm text-yellow-800 mb-3">
+                                            Your account needs verification.
+                                            Please verify your email to
+                                            continue.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={handleVerifyOtp}
+                                            className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                                        >
+                                            Verify OTP
+                                        </button>
+                                    </div>
+                                )}
+                            </Form>
+                        );
+                    }}
                 </Formik>
             </div>
         </AuthLayout>

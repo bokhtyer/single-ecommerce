@@ -62,7 +62,6 @@ export default function VerifyOtp({ email }) {
             { email },
             {
                 onSuccess: () => {
-                    toast.success("New OTP sent to your email!");
                     setTimer(60);
                     setCanResend(false);
                 },
@@ -78,7 +77,7 @@ export default function VerifyOtp({ email }) {
         <AuthLayout>
             <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-md">
                 <div>
-                    <h2 className="text-center text-3xl font-extrabold text-gray-900">
+                    <h2 className="text-center text-3xl font-bold text-gray-900">
                         Verify Your Email
                     </h2>
                     <p className="mt-2 text-center text-sm text-gray-600">

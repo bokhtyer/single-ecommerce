@@ -44,11 +44,6 @@ export default function Register() {
 
     const handleSubmit = (values, { setSubmitting, setErrors }) => {
         router.post("/register", values, {
-            onSuccess: () => {
-                toast.success(
-                    "Registration successful! Please check your email."
-                );
-            },
             onError: (errors) => {
                 setErrors(errors);
                 if (errors.email) {

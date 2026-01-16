@@ -1,4 +1,4 @@
-import { useForm, usePage } from "@inertiajs/react";
+import { Link, useForm, usePage } from "@inertiajs/react";
 
 export default function ResetPassword({ email, otp }) {
     const { flash } = usePage().props;
@@ -106,12 +106,12 @@ export default function ResetPassword({ email, otp }) {
                 </form>
 
                 <div className="text-center">
-                    <a
-                        href="/login"
+                    <Link
+                        to="/login"
                         className="text-sm text-gray-600 hover:text-gray-900"
                     >
                         ← Back to login
-                    </a>
+                    </Link>
                 </div>
             </div>
         </div>
