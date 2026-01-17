@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\OtpController;
 use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\Admin\ProductController as AdminProductController;
 
 // Public Routes
 Route::get('/', [ProductController::class, 'index'])->name('home');
@@ -42,10 +43,15 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
     // Admin Routes
-    Route::middleware('can:isAdmin,App\Models\User')->prefix('admin')->group(function () {
+    Route::middleware('can:isAdmin,App\Models\User')->prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', function () {
             return inertia('Admin/Dashboard');
-        })->name('admin.dashboard');
+        })->name('dashboard');
+        
+        // Product Management Routes
+        Route::resource('products', AdminProductController::class);
+        Route::delete('/products/{product}/gallery/{index}', [AdminProductController::class, 'deleteGalleryImage'])
+            ->name('products.gallery.delete');
     });
 
     // Customer Routes

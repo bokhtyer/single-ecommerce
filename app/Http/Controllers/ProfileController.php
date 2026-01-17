@@ -14,7 +14,8 @@ class ProfileController extends Controller
      */
     public function show()
     {
-        return Inertia::render('Customer/Profile');
+        $user = Auth::user();
+        return Inertia::render('Customer/Profile', ['user' => $user]);
     }
 
     /**

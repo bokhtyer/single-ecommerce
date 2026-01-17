@@ -30,7 +30,7 @@ const ProfileSchema = Yup.object().shape({
         .nullable(),
 });
 
-export default function Profile() {
+export default function Profile({ user }) {
     const { auth, flash } = usePage().props;
     const [isEditing, setIsEditing] = useState(false);
 
@@ -94,7 +94,7 @@ export default function Profile() {
                                             Full Name
                                         </label>
                                         <p className="mt-1 text-base text-gray-900">
-                                            {auth?.user?.name || "Not provided"}
+                                            {user?.name || "Not provided"}
                                         </p>
                                     </div>
 
@@ -104,9 +104,9 @@ export default function Profile() {
                                         </label>
                                         <div className="mt-1">
                                             <p className="text-base text-gray-900">
-                                                {auth?.user?.email}
+                                                {user?.email}
                                             </p>
-                                            {auth?.user?.is_verified && (
+                                            {user?.is_verified && (
                                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-1">
                                                     <svg
                                                         className="w-3 h-3 mr-1"
@@ -130,8 +130,7 @@ export default function Profile() {
                                             Phone Number
                                         </label>
                                         <p className="mt-1 text-base text-gray-900">
-                                            {auth?.user?.phone ||
-                                                "Not provided"}
+                                            {user?.phone || "Not provided"}
                                         </p>
                                     </div>
 
@@ -140,7 +139,7 @@ export default function Profile() {
                                             City
                                         </label>
                                         <p className="mt-1 text-base text-gray-900">
-                                            {auth?.user?.city || "Not provided"}
+                                            {user?.city || "Not provided"}
                                         </p>
                                     </div>
 
@@ -149,8 +148,7 @@ export default function Profile() {
                                             Address
                                         </label>
                                         <p className="mt-1 text-base text-gray-900">
-                                            {auth?.user?.address ||
-                                                "Not provided"}
+                                            {user?.address || "Not provided"}
                                         </p>
                                     </div>
 
@@ -159,7 +157,7 @@ export default function Profile() {
                                             Postal Code
                                         </label>
                                         <p className="mt-1 text-base text-gray-900">
-                                            {auth?.user?.postal_code ||
+                                            {user?.postal_code ||
                                                 "Not provided"}
                                         </p>
                                     </div>
@@ -169,7 +167,7 @@ export default function Profile() {
                                             Account Role
                                         </label>
                                         <span className="inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800 mt-1 capitalize">
-                                            {auth?.user?.role || "Customer"}
+                                            {user?.role || "Customer"}
                                         </span>
                                     </div>
                                 </div>
@@ -178,12 +176,12 @@ export default function Profile() {
                             /* Edit Mode */
                             <Formik
                                 initialValues={{
-                                    name: auth?.user?.name || "",
-                                    email: auth?.user?.email || "",
-                                    phone: auth?.user?.phone || "",
-                                    address: auth?.user?.address || "",
-                                    city: auth?.user?.city || "",
-                                    postal_code: auth?.user?.postal_code || "",
+                                    name: user?.name || "",
+                                    email: user?.email || "",
+                                    phone: user?.phone || "",
+                                    address: user?.address || "",
+                                    city: user?.city || "",
+                                    postal_code: user?.postal_code || "",
                                 }}
                                 validationSchema={ProfileSchema}
                                 onSubmit={handleSubmit}
@@ -206,7 +204,7 @@ export default function Profile() {
                                         setFieldTouched(
                                             fieldName,
                                             false,
-                                            false
+                                            false,
                                         );
                                         handleChange(e);
                                     };
