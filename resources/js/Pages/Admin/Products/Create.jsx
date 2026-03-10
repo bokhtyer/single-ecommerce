@@ -1,5 +1,5 @@
 import { router, usePage } from "@inertiajs/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useFormik } from "formik";
 import AdminLayout from "@/Layouts/AdminLayout";
 import toast from "react-hot-toast";
@@ -10,13 +10,68 @@ import FormSwitch from "@/Components/FormSwitch";
 import FormButton from "@/Components/FormButton";
 import ImageUpload from "@/Components/ImageUpload";
 
-export default function CreateProduct() {
+export default function CreateProduct({ product = null }) {
     const { errors: serverErrors } = usePage().props;
+    const isEditMode = !!product;
     const [attributes, setAttributes] = useState([]);
     const [tags, setTags] = useState([]);
     const [tagInput, setTagInput] = useState("");
+    const [existingGalleryImages, setExistingGalleryImages] = useState([]);
     const [thumbnailPreview, setThumbnailPreview] = useState(null);
     const [galleryPreviews, setGalleryPreviews] = useState([]);
+
+    // Helper function to format datetime for input
+    const formatDateTimeForInput = (dateString) => {
+        if (!dateString) return "";
+        try {
+            const date = new Date(dateString);
+            // Format as YYYY-MM-DDTHH:MM for datetime-local input
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const day = String(date.getDate()).padStart(2, "0");
+            const hours = String(date.getHours()).padStart(2, "0");
+            const minutes = String(date.getMinutes()).padStart(2, "0");
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        } catch (error) {
+            return "";
+        }
+    };
+
+    // Initialize form with existing product data in edit mode
+    useEffect(() => {
+        if (isEditMode && product) {
+            console.log("Product data:", product);
+
+            // Set attributes from product
+            if (product.attributes && Array.isArray(product.attributes)) {
+                console.log("Setting attributes:", product.attributes);
+                // Ensure each attribute has the correct structure
+                const formattedAttributes = product.attributes.map((attr) => ({
+                    name: attr.name || "",
+                    values: Array.isArray(attr.values) ? attr.values : [],
+                }));
+                setAttributes(formattedAttributes);
+            }
+
+            // Set tags from product
+            if (product.tags && Array.isArray(product.tags)) {
+                setTags(product.tags);
+            }
+
+            // Set thumbnail preview if exists
+            if (product.thumbnail) {
+                setThumbnailPreview(`/storage/${product.thumbnail}`);
+            }
+
+            // Set existing gallery images
+            if (
+                product.gallery_images &&
+                Array.isArray(product.gallery_images)
+            ) {
+                setExistingGalleryImages(product.gallery_images);
+            }
+        }
+    }, [isEditMode, product]);
 
     // Validation function
     const validateProductForm = (values) => {
@@ -76,6 +131,11 @@ export default function CreateProduct() {
 
     // Submit handler
     const handleSubmitForm = (values, { setSubmitting }) => {
+        console.log("=== FORM SUBMISSION START ===");
+        console.log("Form values:", values);
+        console.log("Attributes state:", attributes);
+        console.log("Tags state:", tags);
+
         const formData = new FormData();
 
         // Append all text fields
@@ -86,12 +146,32 @@ export default function CreateProduct() {
                 values[key].forEach((file, index) => {
                     formData.append(`gallery_images[${index}]`, file);
                 });
+            } else if (key === "existing_gallery_images") {
+                // Skip this field, we handle it separately
             } else if (key === "attributes") {
                 // Only send attributes if there are values
                 if (attributes.length > 0) {
-                    const attributesJson = JSON.stringify(attributes);
-                    console.log("Sending attributes:", attributesJson);
-                    formData.append(key, attributesJson);
+                    // Clean up attributes - remove empty values
+                    const cleanedAttributes = attributes
+                        .map((attr) => ({
+                            name: attr.name,
+                            values: Array.isArray(attr.values)
+                                ? attr.values.filter(
+                                      (v) => v && v.trim() !== "",
+                                  )
+                                : [],
+                        }))
+                        .filter((attr) => attr.name && attr.values.length > 0);
+
+                    if (cleanedAttributes.length > 0) {
+                        const attributesJson =
+                            JSON.stringify(cleanedAttributes);
+                        console.log(
+                            "Sending cleaned attributes:",
+                            attributesJson,
+                        );
+                        formData.append(key, attributesJson);
+                    }
                 }
             } else if (key === "tags") {
                 // Only send tags if there are values
@@ -119,51 +199,94 @@ export default function CreateProduct() {
             }
         });
 
-        router.post("/admin/products", formData, {
-            forceFormData: true,
-            onSuccess: () => {
-                toast.success("Product created successfully!");
-            },
-            onError: (errors) => {
-                console.log("Validation errors:", errors);
-                Object.values(errors).forEach((error) => {
-                    toast.error(error);
-                });
-                setSubmitting(false);
-            },
-            onFinish: () => {
-                setSubmitting(false);
-            },
-        });
+        // Add existing gallery images that should be kept
+        if (isEditMode && existingGalleryImages.length > 0) {
+            formData.append(
+                "existing_gallery_images",
+                JSON.stringify(existingGalleryImages),
+            );
+        }
+
+        // Log all formData entries
+        console.log("=== FORMDATA CONTENTS ===");
+        for (let pair of formData.entries()) {
+            console.log(pair[0] + ":", pair[1]);
+        }
+        console.log("=== FORM SUBMISSION END ===");
+
+        // Use POST for create, PUT/PATCH for update
+        if (isEditMode) {
+            formData.append("_method", "PUT");
+            router.post(`/admin/products/${product.id}`, formData, {
+                forceFormData: true,
+                onSuccess: () => {
+                    toast.success("Product updated successfully!");
+                },
+                onError: (errors) => {
+                    console.log("Validation errors:", errors);
+                    Object.values(errors).forEach((error) => {
+                        toast.error(error);
+                    });
+                    setSubmitting(false);
+                },
+                onFinish: () => {
+                    setSubmitting(false);
+                },
+            });
+        } else {
+            router.post("/admin/products", formData, {
+                forceFormData: true,
+                onSuccess: () => {
+                    toast.success("Product created successfully!");
+                },
+                onError: (errors) => {
+                    console.log("Validation errors:", errors);
+                    Object.values(errors).forEach((error) => {
+                        toast.error(error);
+                    });
+                    setSubmitting(false);
+                },
+                onFinish: () => {
+                    setSubmitting(false);
+                },
+            });
+        }
     };
 
     // Formik hook
     const formik = useFormik({
         initialValues: {
-            title: "",
-            slug: "",
-            short_description: "",
-            full_details: "",
-            price: "",
-            discount_price: "",
-            discount_start_date: "",
-            discount_end_date: "",
-            quantity: "",
-            min_order_quantity: 1,
-            max_order_quantity: "",
-            sku: "",
+            title: product?.title || "",
+            slug: product?.slug || "",
+            short_description: product?.short_description || "",
+            full_details: product?.full_details || "",
+            price: product?.price || "",
+            discount_price: product?.discount_price || "",
+            discount_start_date: formatDateTimeForInput(
+                product?.discount_start_date,
+            ),
+            discount_end_date: formatDateTimeForInput(
+                product?.discount_end_date,
+            ),
+            quantity: product?.quantity || "",
+            min_order_quantity: product?.min_order_quantity || 1,
+            max_order_quantity: product?.max_order_quantity || "",
+            sku: product?.sku || "",
             thumbnail: null,
             gallery_images: [],
+            existing_gallery_images: [],
             attributes: [],
             variations: [],
-            meta_title: "",
-            meta_description: "",
+            meta_title: product?.meta_title || "",
+            meta_description: product?.meta_description || "",
             tags: [],
-            free_shipping: false,
-            shipping_cost_dhaka: "",
-            shipping_cost_outside_dhaka: "",
-            is_landing_page: false,
-            is_active: true,
+            free_shipping: product?.free_shipping || false,
+            shipping_cost_dhaka: product?.shipping_cost_dhaka || "",
+            shipping_cost_outside_dhaka:
+                product?.shipping_cost_outside_dhaka || "",
+            is_landing_page: product?.is_landing_page || false,
+            is_active:
+                product?.is_active !== undefined ? product.is_active : true,
         },
         validateOnChange: true,
         validateOnBlur: true,
@@ -240,7 +363,11 @@ export default function CreateProduct() {
 
     const handleThumbnailRemove = () => {
         formik.setFieldValue("thumbnail", null);
-        setThumbnailPreview(null);
+        setThumbnailPreview(
+            isEditMode && product?.thumbnail
+                ? `/storage/${product.thumbnail}`
+                : null,
+        );
     };
 
     const handleGalleryChange = (e) => {
@@ -270,15 +397,24 @@ export default function CreateProduct() {
         setGalleryPreviews(newPreviews);
     };
 
+    const handleExistingGalleryRemove = (index) => {
+        const newExistingImages = existingGalleryImages.filter(
+            (_, i) => i !== index,
+        );
+        setExistingGalleryImages(newExistingImages);
+    };
+
     return (
         <AdminLayout>
             <div className="py-6">
                 <div className="mb-6">
                     <h1 className="text-2xl font-bold text-gray-900">
-                        Add New Product
+                        {isEditMode ? "Edit Product" : "Add New Product"}
                     </h1>
                     <p className="mt-1 text-sm text-gray-600">
-                        Fill in the details below to create a new product
+                        {isEditMode
+                            ? "Update the details below to modify the product"
+                            : "Fill in the details below to create a new product"}
                     </p>
                 </div>
 
@@ -493,6 +629,59 @@ export default function CreateProduct() {
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Gallery Images
                                 </label>
+
+                                {/* Existing gallery images (in edit mode) */}
+                                {isEditMode &&
+                                    existingGalleryImages.length > 0 && (
+                                        <div className="mb-4">
+                                            <p className="text-sm text-gray-600 mb-2">
+                                                Existing Images:
+                                            </p>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                {existingGalleryImages.map(
+                                                    (imagePath, index) => (
+                                                        <div
+                                                            key={`existing-${index}`}
+                                                            className="relative"
+                                                        >
+                                                            <img
+                                                                src={`/storage/${imagePath}`}
+                                                                alt={`Gallery ${index + 1}`}
+                                                                className="h-32 w-full object-cover rounded-lg border-2 border-gray-300"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    handleExistingGalleryRemove(
+                                                                        index,
+                                                                    )
+                                                                }
+                                                                className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+                                                            >
+                                                                <svg
+                                                                    className="w-4 h-4"
+                                                                    fill="none"
+                                                                    stroke="currentColor"
+                                                                    viewBox="0 0 24 24"
+                                                                >
+                                                                    <path
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        strokeWidth={
+                                                                            2
+                                                                        }
+                                                                        d="M6 18L18 6M6 6l12 12"
+                                                                    />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    ),
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                {/* New gallery images upload */}
                                 <input
                                     id="gallery-images-input"
                                     type="file"
@@ -527,45 +716,54 @@ export default function CreateProduct() {
                                     </svg>
                                     Add New Image
                                 </button>
+
+                                {/* New images preview */}
                                 {galleryPreviews.length > 0 && (
-                                    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        {galleryPreviews.map(
-                                            (preview, index) => (
-                                                <div
-                                                    key={index}
-                                                    className="relative"
-                                                >
-                                                    <img
-                                                        src={preview}
-                                                        alt={`Gallery ${index + 1}`}
-                                                        className="h-32 w-full object-cover rounded-lg border-2 border-gray-300"
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleGalleryRemove(
-                                                                index,
-                                                            )
-                                                        }
-                                                        className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+                                    <div className="mt-4">
+                                        <p className="text-sm text-gray-600 mb-2">
+                                            New Images to Upload:
+                                        </p>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            {galleryPreviews.map(
+                                                (preview, index) => (
+                                                    <div
+                                                        key={`new-${index}`}
+                                                        className="relative"
                                                     >
-                                                        <svg
-                                                            className="w-4 h-4"
-                                                            fill="none"
-                                                            stroke="currentColor"
-                                                            viewBox="0 0 24 24"
+                                                        <img
+                                                            src={preview}
+                                                            alt={`New Gallery ${index + 1}`}
+                                                            className="h-32 w-full object-cover rounded-lg border-2 border-gray-300"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleGalleryRemove(
+                                                                    index,
+                                                                )
+                                                            }
+                                                            className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
                                                         >
-                                                            <path
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                                strokeWidth={2}
-                                                                d="M6 18L18 6M6 6l12 12"
-                                                            />
-                                                        </svg>
-                                                    </button>
-                                                </div>
-                                            ),
-                                        )}
+                                                            <svg
+                                                                className="w-4 h-4"
+                                                                fill="none"
+                                                                stroke="currentColor"
+                                                                viewBox="0 0 24 24"
+                                                            >
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth={
+                                                                        2
+                                                                    }
+                                                                    d="M6 18L18 6M6 6l12 12"
+                                                                />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                ),
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -612,7 +810,7 @@ export default function CreateProduct() {
                                                 name={`attribute_name_${index}`}
                                                 type="text"
                                                 placeholder="e.g., Size, Color, Material"
-                                                value={attr.name}
+                                                value={attr.name || ""}
                                                 onChange={(e) =>
                                                     updateAttribute(
                                                         index,
@@ -626,7 +824,11 @@ export default function CreateProduct() {
                                                 name={`attribute_values_${index}`}
                                                 type="text"
                                                 placeholder="e.g., Small, Medium, Large"
-                                                value={attr.values.join(", ")}
+                                                value={
+                                                    Array.isArray(attr.values)
+                                                        ? attr.values.join(", ")
+                                                        : ""
+                                                }
                                                 onChange={(e) =>
                                                     updateAttribute(
                                                         index,
@@ -907,8 +1109,12 @@ export default function CreateProduct() {
                         </FormButton>
                         <FormButton type="submit" loading={formik.isSubmitting}>
                             {formik.isSubmitting
-                                ? "Creating..."
-                                : "Create Product"}
+                                ? isEditMode
+                                    ? "Updating..."
+                                    : "Creating..."
+                                : isEditMode
+                                  ? "Update Product"
+                                  : "Create Product"}
                         </FormButton>
                     </div>
                 </form>

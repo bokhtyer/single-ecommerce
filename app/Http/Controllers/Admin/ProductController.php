@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -36,39 +37,36 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
-        // Decode JSON strings for arrays, set empty array if not provided
-        if ($request->has('attributes')) {
-            if (is_string($request->attributes)) {
-                $decoded = json_decode($request->attributes, true);
-                $request->merge(['attributes' => is_array($decoded) ? $decoded : []]);
-            } elseif (!is_array($request->attributes)) {
-                $request->merge(['attributes' => []]);
-            }
-        } else {
-            $request->merge(['attributes' => []]);
+        // Log incoming request for debugging
+        \Log::info('Store Product Request', [
+            'attributes_raw' => $request->input('attributes'),
+            'tags_raw' => $request->input('tags'),
+        ]);
+
+        // Decode JSON strings and SAVE them separately
+        $decodedAttributes = [];
+        if ($request->has('attributes') && is_string($request->attributes)) {
+            $decoded = json_decode($request->attributes, true);
+            $decodedAttributes = is_array($decoded) ? $decoded : [];
+            \Log::info('Decoded attributes', ['decoded' => $decodedAttributes]);
         }
         
-        if ($request->has('tags')) {
-            if (is_string($request->tags)) {
-                $decoded = json_decode($request->tags, true);
-                $request->merge(['tags' => is_array($decoded) ? $decoded : []]);
-            } elseif (!is_array($request->tags)) {
-                $request->merge(['tags' => []]);
-            }
-        } else {
-            $request->merge(['tags' => []]);
+        $decodedTags = [];
+        if ($request->has('tags') && is_string($request->tags)) {
+            $decoded = json_decode($request->tags, true);
+            $decodedTags = is_array($decoded) ? $decoded : [];
         }
         
-        if ($request->has('variations')) {
-            if (is_string($request->variations)) {
-                $decoded = json_decode($request->variations, true);
-                $request->merge(['variations' => is_array($decoded) ? $decoded : []]);
-            } elseif (!is_array($request->variations)) {
-                $request->merge(['variations' => []]);
-            }
-        } else {
-            $request->merge(['variations' => []]);
+        $decodedVariations = [];
+        if ($request->has('variations') && is_string($request->variations)) {
+            $decoded = json_decode($request->variations, true);
+            $decodedVariations = is_array($decoded) ? $decoded : [];
         }
+
+        \Log::info('Decoded values to be saved', [
+            'attributes' => $decodedAttributes,
+            'tags' => $decodedTags,
+        ]);
 
         // Convert boolean strings to actual booleans
         $request->merge([
@@ -77,7 +75,8 @@ class ProductController extends Controller
             'is_active' => filter_var($request->input('is_active', true), FILTER_VALIDATE_BOOLEAN),
         ]);
 
-        $validated = $request->validate([
+        // Use Validator::make - exclude JSON fields from validation
+        $validator = Validator::make($request->except(['attributes', 'tags', 'variations']), [
             'title' => 'required|string|max:255',
             'slug' => 'nullable|string|unique:products,slug',
             'short_description' => 'nullable|string',
@@ -92,16 +91,29 @@ class ProductController extends Controller
             'sku' => 'nullable|string|unique:products,sku',
             'thumbnail' => 'nullable|image|max:2048',
             'gallery_images.*' => 'nullable|image|max:2048',
-            'attributes' => 'nullable|array',
-            'variations' => 'nullable|array',
             'meta_title' => 'nullable|string|max:255',
             'meta_description' => 'nullable|string',
-            'tags' => 'nullable|array',
             'free_shipping' => 'boolean',
             'shipping_cost_dhaka' => 'nullable|numeric|min:0',
             'shipping_cost_outside_dhaka' => 'nullable|numeric|min:0',
             'is_landing_page' => 'boolean',
             'is_active' => 'boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        $validated = $validator->validated();
+
+        // Add the decoded JSON fields directly
+        $validated['attributes'] = $decodedAttributes;
+        $validated['tags'] = $decodedTags;
+        $validated['variations'] = $decodedVariations;
+
+        \Log::info('After adding JSON fields to validated', [
+            'attributes' => $validated['attributes'],
+            'tags' => $validated['tags'],
         ]);
 
         // Generate slug if not provided
@@ -123,7 +135,18 @@ class ProductController extends Controller
             $validated['gallery_images'] = $galleryPaths;
         }
 
+        \Log::info('RIGHT BEFORE CREATE', [
+            'validated_attributes' => $validated['attributes'],
+            'validated_tags' => $validated['tags'],
+        ]);
+
         $product = Product::create($validated);
+
+        \Log::info('Product created', [
+            'product_id' => $product->id,
+            'attributes_in_db' => $product->attributes,
+            'tags_in_db' => $product->tags,
+        ]);
 
         return redirect()->route('admin.products.index')
             ->with('success', 'Product created successfully!');
@@ -154,7 +177,47 @@ class ProductController extends Controller
      */
     public function update(Request $request, Product $product)
     {
-        $validated = $request->validate([
+        // Log incoming request for debugging
+        \Log::info('Update Product Request', [
+            'product_id' => $product->id,
+            'attributes_raw' => $request->input('attributes'),
+            'tags_raw' => $request->input('tags'),
+        ]);
+
+        // Decode JSON strings and SAVE them separately
+        $decodedAttributes = [];
+        if ($request->has('attributes') && is_string($request->attributes)) {
+            $decoded = json_decode($request->attributes, true);
+            $decodedAttributes = is_array($decoded) ? $decoded : [];
+            \Log::info('Decoded attributes (update)', ['decoded' => $decodedAttributes]);
+        }
+        
+        $decodedTags = [];
+        if ($request->has('tags') && is_string($request->tags)) {
+            $decoded = json_decode($request->tags, true);
+            $decodedTags = is_array($decoded) ? $decoded : [];
+        }
+        
+        $decodedVariations = [];
+        if ($request->has('variations') && is_string($request->variations)) {
+            $decoded = json_decode($request->variations, true);
+            $decodedVariations = is_array($decoded) ? $decoded : [];
+        }
+
+        \Log::info('Decoded values to be updated', [
+            'attributes' => $decodedAttributes,
+            'tags' => $decodedTags,
+        ]);
+
+        // Convert boolean strings to actual booleans
+        $request->merge([
+            'free_shipping' => filter_var($request->input('free_shipping', false), FILTER_VALIDATE_BOOLEAN),
+            'is_landing_page' => filter_var($request->input('is_landing_page', false), FILTER_VALIDATE_BOOLEAN),
+            'is_active' => filter_var($request->input('is_active', true), FILTER_VALIDATE_BOOLEAN),
+        ]);
+
+        // Use Validator::make - exclude JSON fields from validation
+        $validator = Validator::make($request->except(['attributes', 'tags', 'variations']), [
             'title' => 'required|string|max:255',
             'slug' => 'nullable|string|unique:products,slug,' . $product->id,
             'short_description' => 'nullable|string',
@@ -169,17 +232,35 @@ class ProductController extends Controller
             'sku' => 'nullable|string|unique:products,sku,' . $product->id,
             'thumbnail' => 'nullable|image|max:2048',
             'gallery_images.*' => 'nullable|image|max:2048',
-            'attributes' => 'nullable|array',
-            'variations' => 'nullable|array',
             'meta_title' => 'nullable|string|max:255',
             'meta_description' => 'nullable|string',
-            'tags' => 'nullable|array',
             'free_shipping' => 'boolean',
             'shipping_cost_dhaka' => 'nullable|numeric|min:0',
             'shipping_cost_outside_dhaka' => 'nullable|numeric|min:0',
             'is_landing_page' => 'boolean',
             'is_active' => 'boolean',
         ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        $validated = $validator->validated();
+
+        // Add the decoded JSON fields directly
+        $validated['attributes'] = $decodedAttributes;
+        $validated['tags'] = $decodedTags;
+        $validated['variations'] = $decodedVariations;
+
+        \Log::info('After adding JSON fields to validated (update)', [
+            'attributes' => $validated['attributes'],
+            'tags' => $validated['tags'],
+        ]);
+
+        // Generate slug if not provided
+        if (empty($validated['slug'])) {
+            $validated['slug'] = Str::slug($validated['title']);
+        }
 
         // Handle thumbnail upload
         if ($request->hasFile('thumbnail')) {
@@ -191,21 +272,42 @@ class ProductController extends Controller
         }
 
         // Handle gallery images upload
+        $existingGalleryImages = [];
+        if ($request->has('existing_gallery_images')) {
+            $decoded = json_decode($request->existing_gallery_images, true);
+            $existingGalleryImages = is_array($decoded) ? $decoded : [];
+        }
+
         if ($request->hasFile('gallery_images')) {
-            // Delete old gallery images
-            if ($product->gallery_images) {
-                foreach ($product->gallery_images as $image) {
-                    Storage::disk('public')->delete($image);
-                }
-            }
-            $galleryPaths = [];
+            // Keep existing images and add new ones
+            $galleryPaths = $existingGalleryImages;
+            
             foreach ($request->file('gallery_images') as $image) {
                 $galleryPaths[] = $image->store('products/gallery', 'public');
             }
             $validated['gallery_images'] = $galleryPaths;
+        } else {
+            // Only keep existing images if no new images uploaded
+            if (!empty($existingGalleryImages)) {
+                $validated['gallery_images'] = $existingGalleryImages;
+            }
+        }
+
+        // Delete removed gallery images
+        if ($product->gallery_images) {
+            $removedImages = array_diff($product->gallery_images, $existingGalleryImages);
+            foreach ($removedImages as $image) {
+                Storage::disk('public')->delete($image);
+            }
         }
 
         $product->update($validated);
+
+        \Log::info('Product updated', [
+            'product_id' => $product->id,
+            'attributes_in_db' => $product->fresh()->attributes,
+            'tags_in_db' => $product->fresh()->tags,
+        ]);
 
         return redirect()->route('admin.products.index')
             ->with('success', 'Product updated successfully!');
